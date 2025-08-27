@@ -53,7 +53,7 @@ export default function ScanPageWithAI() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer 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`, // 🔁 Replace with your OpenAI key
+          Authorization: `Bearer `, // 🔁 Replace with your OpenAI key
       
         },
         body: JSON.stringify({
