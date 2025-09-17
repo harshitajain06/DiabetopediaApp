@@ -7,13 +7,12 @@ import { Platform } from 'react-native';
 
 // Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyDs1RjxcDY4iBNE-cZnMm6r2LlM5VEdL6E",
-  authDomain: "diabetopedia-dbddb.firebaseapp.com",
-  projectId: "diabetopedia-dbddb",
-  storageBucket: "diabetopedia-dbddb.firebasestorage.app",
-  messagingSenderId: "866476322176",
-  appId: "1:866476322176:web:deb42be0cc96a3546e6565",
-  measurementId: "G-XGH3W6HPWG"
+  apiKey: "AIzaSyBV2Q-_nJIcRHGUbhtwu8eKN9UAeaPvwQw",
+    authDomain: "fir-authentication-8abb6.firebaseapp.com",
+    projectId: "fir-authentication-8abb6",
+    storageBucket: "fir-authentication-8abb6.appspot.com",
+    messagingSenderId: "854259513422",
+    appId: "1:854259513422:web:9a3d38f04501b643f0ab1f"
 };
 
 // Initialize Firebase

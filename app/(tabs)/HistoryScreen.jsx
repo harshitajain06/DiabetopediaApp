@@ -1,43 +1,34 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as Speech from 'expo-speech';
+import { collection, deleteDoc, doc, getDocs, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
-  Share,
   Alert,
-  RefreshControl,
   Dimensions,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { collection, getDocs, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
-import * as Speech from 'expo-speech';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-// ✅ Updated with Hindi translations
-const originalDefaultItems = [
-];
 
-const categories = [
-  'All',
-  'Food',
-  'Pain',
-  'Recreational Activity',
-  'Communication',
-  'Basic Needs',
-];
 
 export default function HistoryScreen() {
   const [firebaseItems, setFirebaseItems] = useState([]);
-  const [defaultItems, setDefaultItems] = useState(originalDefaultItems);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
 
   const fetchHistory = async () => {
     try {
@@ -45,7 +36,7 @@ export default function HistoryScreen() {
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
-      const historyRef = collection(db, 'users', userId, 'history');
+      const historyRef = collection(db, 'users', userId, 'history1');
       const q = query(historyRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
 
@@ -75,29 +66,43 @@ export default function HistoryScreen() {
     });
   };
 
-  const speakHindi = (text) => {
-    Speech.speak(text, {
-      language: 'hi-IN',
-      rate: 1.0,
-      pitch: 1.0,
-    });
+
+  const showDeleteModal = (item) => {
+    setItemToDelete(item);
+    setDeleteModalVisible(true);
   };
 
-  const deleteItem = async (item, fromFirebase = false) => {
-    if (fromFirebase) {
-      try {
-        await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'history', item.id));
-        setFirebaseItems((prev) => prev.filter((i) => i.id !== item.id));
-      } catch (error) {
-        console.error('Error deleting item:', error);
-      }
-    } else {
-      setDefaultItems((prev) => prev.filter((i) => i.id !== item.id));
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    
+    try {
+      const docRef = doc(db, 'users', auth.currentUser.uid, 'history1', itemToDelete.id);
+      await deleteDoc(docRef);
+      setFirebaseItems((prev) => prev.filter((i) => i.id !== itemToDelete.id));
+      setDeleteModalVisible(false);
+      setItemToDelete(null);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      Alert.alert('Error', `Failed to delete item: ${error.message}`);
     }
   };
 
-  const restoreDefaultItems = () => {
-    setDefaultItems(originalDefaultItems);
+  const cancelDelete = () => {
+    setDeleteModalVisible(false);
+    setItemToDelete(null);
+  };
+
+
+  const renderRichText = (text) => {
+    // Simple approach: just clean the markdown and return as plain text
+    const cleanedText = text
+      .replace(/#{1,6}\s*/g, '') // Remove # headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove ** bold **
+      .replace(/\*([^*]+)\*/g, '$1') // Remove * italic *
+      .replace(/\n\n/g, '\n') // Remove extra line breaks
+      .trim();
+    
+    return cleanedText;
   };
 
   const shareText = async (text) => {
@@ -108,9 +113,7 @@ export default function HistoryScreen() {
     }
   };
 
-  const filteredItems = [...firebaseItems, ...defaultItems].filter(
-    (item) => selectedCategory === 'All' || item.category === selectedCategory
-  );
+  const filteredItems = firebaseItems;
 
   return (
     <ScrollView
@@ -132,20 +135,6 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.categoryBar}>
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.categoryButton,
-              selectedCategory === cat && styles.selectedCategory,
-            ]}
-            onPress={() => setSelectedCategory(cat)}
-          >
-            <Text style={styles.categoryText}>{cat}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color="#6366f1" />
@@ -161,7 +150,9 @@ export default function HistoryScreen() {
             )}
             <View style={styles.textContainer}>
               <Text style={styles.title}>Message:</Text>
-              <Text style={styles.response}>{item.response}</Text>
+              <Text style={styles.response} selectable={true} allowFontScaling={true}>
+                {renderRichText(item.response)}
+              </Text>
               {item.createdAt && (
                 <Text style={styles.date}>
                   {item.createdAt?.toDate?.().toLocaleString?.() || ''}
@@ -177,15 +168,7 @@ export default function HistoryScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
-                onPress={() =>
-                  Alert.alert('Delete', 'Are you sure you want to delete?', [
-                    { text: 'Cancel' },
-                    {
-                      text: 'Delete',
-                      onPress: () => deleteItem(item, !!item.createdAt),
-                    },
-                  ])
-                }
+                onPress={() => showDeleteModal(item)}
               >
                 <Text style={styles.actionText}>Delete</Text>
               </TouchableOpacity>
@@ -198,21 +181,41 @@ export default function HistoryScreen() {
                 <Text style={styles.actionText}>🔊 Speak</Text>
               </TouchableOpacity>
 
-              {/* Hindi Speech */}
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: '#f59e0b' }]}
-                onPress={() => speakHindi(item.responseHindi || item.response)}
-              >
-                <Text style={styles.actionText}>🔊 Speak Hindi</Text>
-              </TouchableOpacity>
             </View>
           </View>
         ))
       )}
 
-      <TouchableOpacity style={styles.restoreButton} onPress={restoreDefaultItems}>
-        <Text style={styles.restoreText}>🔄 Restore Deleted Defaults</Text>
-      </TouchableOpacity>
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete Item</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete this item? This action cannot be undone.
+            </Text>
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={cancelDelete}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.deleteButton]}
+                onPress={confirmDelete}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -238,26 +241,6 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: '#e0e7ff',
     borderRadius: 20,
-  },
-  categoryBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  categoryButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 20,
-    margin: 4,
-  },
-  selectedCategory: {
-    backgroundColor: '#6366f1',
-  },
-  categoryText: {
-    color: '#111827',
-    fontWeight: '600',
   },
   noData: {
     fontSize: 16,
@@ -299,6 +282,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    lineHeight: 20,
   },
   date: {
     fontSize: 12,
@@ -324,15 +309,65 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
-  restoreButton: {
-    marginTop: 20,
-    alignSelf: 'center',
-    backgroundColor: '#22c55e',
-    padding: 12,
-    borderRadius: 8,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  restoreText: {
-    color: '#fff',
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    margin: 20,
+    minWidth: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginHorizontal: 6,
+  },
+  cancelButton: {
+    backgroundColor: '#e5e7eb',
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
+  },
+  cancelButtonText: {
+    color: '#374151',
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

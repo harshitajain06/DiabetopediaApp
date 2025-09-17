@@ -1,43 +1,58 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  Modal,
-  Platform,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { addDoc, collection, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { auth, db, storage } from '../../config/firebase';
 import { encodeToBase64 } from '../../utils/base64Encoder';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import { auth, storage, db } from '../../config/firebase';
 
 export default function ScanPageWithAI() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [aiResponse, setAiResponse] = useState('');
-  const [aiResponseHindi, setAiResponseHindi] = useState('');
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
     if (!permission) requestPermission();
+    fetchApiKey();
   }, [permission]);
+
+  const fetchApiKey = async () => {
+    try {
+      const apiKeyDoc = await getDoc(doc(db, 'configSnigdha', 'openai'));
+      if (apiKeyDoc.exists()) {
+        setOpenaiApiKey(apiKeyDoc.data().apiKey);
+      } else {
+        console.error('OpenAI API key not found in Firestore');
+        Alert.alert('Error', 'API configuration not found. Please contact support.');
+      }
+    } catch (error) {
+      console.error('Error fetching API key:', error);
+      Alert.alert('Error', 'Failed to load API configuration.');
+    }
+  };
 
   const analyzeAndUpload = async (uri) => {
     try {
       setLoading(true);
       setAiResponse('');
-      setAiResponseHindi('');
 
       let base64;
       if (Platform.OS === 'web') {
@@ -48,13 +63,19 @@ export default function ScanPageWithAI() {
         base64 = await encodeToBase64(uri);
       }
 
+      // Check if API key is available
+      if (!openaiApiKey) {
+        Alert.alert('Error', 'API key not loaded. Please try again.');
+        setLoading(false);
+        return;
+      }
+
       // Step 1: Get English interpretation
       const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer `, // 🔁 Replace with your OpenAI key
-      
+          Authorization: `Bearer ${openaiApiKey}`,
         },
         body: JSON.stringify({
           model: 'gpt-4o',
@@ -77,31 +98,8 @@ export default function ScanPageWithAI() {
 
       const data = await openaiRes.json();
       const reply = data.choices?.[0]?.message?.content || 'No response';
+      console.log('AI Response received:', reply);
       setAiResponse(reply);
-
-      // Step 2: Translate to Hindi
-      const translateRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer `, // 🔁 Replace with your OpenAI key
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a translator. Translate the following English text into simple Hindi.',
-            },
-            { role: 'user', content: reply },
-          ],
-        }),
-      });
-
-      const translateData = await translateRes.json();
-      const hindiReply =
-        translateData.choices?.[0]?.message?.content || 'अनुवाद उपलब्ध नहीं है';
-      setAiResponseHindi(hindiReply);
 
       setModalVisible(true);
 
@@ -115,11 +113,10 @@ export default function ScanPageWithAI() {
       await uploadBytes(imageRef, imageBlob);
       const downloadURL = await getDownloadURL(imageRef);
 
-      const historyRef = collection(db, 'users', userId, 'history');
+      const historyRef = collection(db, 'users', userId, 'history1');
       await addDoc(historyRef, {
         image: downloadURL,
         response: reply,
-        responseHindi: hindiReply,
         createdAt: Timestamp.now(),
       });
     } catch (err) {
@@ -139,6 +136,18 @@ export default function ScanPageWithAI() {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  };
+
+  const renderRichText = (text) => {
+    // Simple approach: just clean the markdown and return as plain text
+    const cleanedText = text
+      .replace(/#{1,6}\s*/g, '') // Remove # headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove ** bold **
+      .replace(/\*([^*]+)\*/g, '$1') // Remove * italic *
+      .replace(/\n\n/g, '\n') // Remove extra line breaks
+      .trim();
+    
+    return cleanedText;
   };
 
   const pickImage = async () => {
@@ -224,7 +233,9 @@ export default function ScanPageWithAI() {
           {selectedImage && <Image source={{ uri: selectedImage }} style={styles.imagePreview} />}
           <View style={styles.responseBox}>
             <Text style={styles.responseTitle}>This Iem contains:</Text>
-            <Text style={styles.responseText}>{aiResponse}</Text>
+            <Text style={styles.responseText} selectable={true} allowFontScaling={true}>
+              {renderRichText(aiResponse)}
+            </Text>
 
             {/* */}
           </View>
@@ -340,6 +351,8 @@ const styles = StyleSheet.create({
   responseText: {
     fontSize: 16,
     color: '#78350f',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    lineHeight: 22,
   },
   tipsCard: {
     backgroundColor: '#fff',
