@@ -101,7 +101,7 @@ const DrawerNavigator = () => {
 // Stack Navigator Component
 export default function StackLayout() {
   const colorScheme = useColorScheme();
-
+  
   return (
     <Stack.Navigator
       screenOptions={{
