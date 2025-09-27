@@ -5,9 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Linking
 } from "react-native";
+import { useNavigation } from "@react-navigation/native"; 
 
 export default function DiabeticAppHome() {
+  const navigation = useNavigation();
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header */}
@@ -17,31 +20,19 @@ export default function DiabeticAppHome() {
       </Text>
 
       {/* Cards */}
-      <TouchableOpacity style={styles.card}>
-        <Text style={styles.cardTitle}>📊 Track Blood Sugar</Text>
+      <TouchableOpacity style={styles.card}
+       onPress={() => Linking.openURL("https://diabetopedia.in/")}>
+        <Text style={styles.cardTitle}>📊 Diabetes Care</Text>
         <Text style={styles.cardDesc}>
-          Log your sugar levels daily to monitor your health.
+          Cllick here to learn in depth about Diabetes and manage your health
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.card}>
+      <TouchableOpacity style={styles.card}
+      onPress={() => Linking.openURL("https://diabetopedia.vercel.app/")}>
         <Text style={styles.cardTitle}>🥗 Meal Planner</Text>
         <Text style={styles.cardDesc}>
-          Get healthy meal suggestions for diabetics.
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.card}>
-        <Text style={styles.cardTitle}>💊 Medication Reminders</Text>
-        <Text style={styles.cardDesc}>
-          Set alerts for your daily medicines and insulin.
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.card}>
-        <Text style={styles.cardTitle}>📅 Appointments</Text>
-        <Text style={styles.cardDesc}>
-          Keep track of doctor visits and check-ups.
+          Click here to get healthy meal suggestions for diabetics.
         </Text>
       </TouchableOpacity>
 
