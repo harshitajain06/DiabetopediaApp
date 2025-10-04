@@ -1,11 +1,47 @@
-import React from "react";
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { getVisitorStats, trackVisit } from "../../utils/visitorTracking";
 
 export default function DiabeticAppHome() {
+  const [visitorCount, setVisitorCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const initializeVisitorTracking = async () => {
+      try {
+        // Track the current visit
+        await trackVisit();
+        
+        // Get visitor statistics
+        const stats = await getVisitorStats();
+        setVisitorCount(stats.totalUniqueVisitors || 0);
+        
+      } catch (error) {
+        console.error('Error initializing visitor tracking:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeVisitorTracking();
+  }, []);
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header */}
-      <Text style={styles.header}>🌸 Diabetopedia</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>🌸 Diabetopedia</Text>
+        {/* Subtle visitor count in corner */}
+        <View style={styles.visitorCountContainer}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#888" />
+          ) : (
+            <Text style={styles.visitorCountText}>
+              👥 {visitorCount.toLocaleString()}
+            </Text>
+          )}
+        </View>
+      </View>
       <Text style={styles.subHeader}>
         Manage your health - take control of your plate!
       </Text>
@@ -57,12 +93,32 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "#FFFFFF", // very light beige background
   },
+  headerContainer: {
+    position: "relative",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   header: {
     fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 10,
     textAlign: "center",
     color: "#000000", // light blue
+  },
+  visitorCountContainer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  visitorCountText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   subHeader: {
     fontSize: 16,
