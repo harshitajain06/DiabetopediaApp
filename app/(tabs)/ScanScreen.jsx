@@ -198,7 +198,7 @@ export default function ScanPageWithAI() {
           <TouchableOpacity style={styles.iconArea}>
             <Text style={styles.icon}>📷</Text>
             <Text style={styles.placeholderText}>
-              Take a photo or upload an image to help the child express themselves
+            Take a picture or upload an image to get insights on your plate
             </Text>
           </TouchableOpacity>
         )}
